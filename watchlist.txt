@@ -1,0 +1,7 @@
+# PSX watchlist — one ticker per line. Edit this file to change what the dashboard tracks.
+OGDC
+HBL
+LUCK
+ENGRO
+PPL
+MCB
