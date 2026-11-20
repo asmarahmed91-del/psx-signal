@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PSX Signal">
+<meta name="theme-color" content="#0f1419">
+<title>PSX Signal</title>
+<style>
+  :root{
+    --bg:#0f1419; --panel:#171e26; --panel-2:#1e2732; --line:#2a3542;
+    --text:#e6edf3; --muted:#8b98a5; --accent:#2f81f7;
+    --buy:#2ea043; --buy-bg:#17251a; --watch:#d29922; --watch-bg:#241f12;
+    --avoid:#f85149; --avoid-bg:#2a1718; --err:#6e7681;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg);color:var(--text);line-height:1.5;
+    padding:max(16px,env(safe-area-inset-top)) 14px calc(24px + env(safe-area-inset-bottom))}
+  .wrap{max-width:760px;margin:0 auto}
+  header{margin-bottom:14px}
+  h1{font-size:20px;font-weight:600;letter-spacing:-.3px}
+  h1 span{color:var(--accent)}
+  .sub{color:var(--muted);font-size:12px}
+  .controls{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  input[type=text]{background:var(--panel-2);border:1px solid var(--line);color:var(--text);
+    padding:9px 11px;border-radius:9px;font-size:16px;flex:1;min-width:100px}
+  input[type=text]:focus{outline:none;border-color:var(--accent)}
+  button{background:var(--accent);color:#fff;border:none;padding:9px 14px;border-radius:9px;
+    font-size:14px;cursor:pointer;font-weight:500}
+  button.ghost{background:var(--panel-2);border:1px solid var(--line);color:var(--text)}
+  label.chk{color:var(--muted);font-size:13px;display:flex;align-items:center;gap:6px}
+  select{background:var(--panel-2);border:1px solid var(--line);color:var(--text);
+    padding:8px;border-radius:9px;font-size:14px}
+  .row2{display:flex;gap:8px;align-items:center;flex-wrap:wrap;width:100%}
+  .spacer{flex:1}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:14px;margin-bottom:10px}
+  .card .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  .sym{font-size:17px;font-weight:700}
+  .price{font-size:15px;color:var(--muted)}
+  .badge{display:inline-block;padding:4px 11px;border-radius:999px;font-size:13px;font-weight:700}
+  .BUY{color:var(--buy);background:var(--buy-bg)}
+  .WATCH{color:var(--watch);background:var(--watch-bg)}
+  .AVOID{color:var(--avoid);background:var(--avoid-bg)}
+  .ERR{color:var(--err);background:var(--panel-2)}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 6px}
+  .cell{background:var(--panel-2);border-radius:8px;padding:8px 10px}
+  .cell .k{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+  .cell .v{font-size:15px;font-weight:600;margin-top:2px}
+  .pos{color:var(--buy)} .neg{color:var(--avoid)}
+  .meta{display:flex;gap:14px;margin-top:10px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+  .rm{color:var(--muted);font-size:20px;line-height:1;padding:2px 6px;cursor:pointer}
+  .status{color:var(--muted);font-size:12px;margin:10px 2px;display:flex;
+    justify-content:space-between;flex-wrap:wrap;gap:6px}
+  .disc{color:var(--err);font-size:11px;margin-top:4px;padding:0 2px}
+  .empty{padding:30px;text-align:center;color:var(--muted)}
+  .errmsg{color:var(--avoid);font-size:12px;word-break:break-word}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>PSX <span>Signal</span></h1>
+    <div class="sub">Rules-based technical signals · Pakistan Stock Exchange</div>
+  </header>
+
+  <div class="controls">
+    <div class="row2">
+      <input type="text" id="addInput" placeholder="Add ticker (e.g. OGDC)" autocomplete="off" autocapitalize="characters">
+      <button id="addBtn">Add</button>
+    </div>
+    <div class="row2">
+      <button class="ghost" id="refreshBtn">Refresh</button>
+      <label class="chk"><input type="checkbox" id="liveChk" checked> Live price</label>
+      <div class="spacer"></div>
+      <label class="chk">Auto
+        <select id="autoSel">
+          <option value="0">Off</option>
+          <option value="60">1m</option>
+          <option value="300">5m</option>
+          <option value="900">15m</option>
+        </select>
+      </label>
+    </div>
+  </div>
+
+  <div id="cards"><div class="empty">Loading…</div></div>
+
+  <div class="status">
+    <span id="statusText">Starting…</span>
+    <span id="asofText"></span>
+  </div>
+  <div class="disc">Rules-based technical signal, not financial advice. Never places orders —
+    confirm the live price with your broker before trading. Settlement T+2; circuit breakers apply.</div>
+</div>
+
+<script>
+// ===========================================================================
+//  PSX Signal engine
+// ===========================================================================
+const TICK=0.01, rtick=x=>Math.round(x/TICK)*TICK;
+const DEFAULTS=["OGDC","HBL","LUCK","ENGRO","PPL","MCB"];
+
+function sma(a,n){ if(a.length<n) return NaN; let s=0; for(let i=a.length-n;i<a.length;i++) s+=a[i]; return s/n; }
+function ewmLast(a,al){ let e=a[0]; for(let i=1;i<a.length;i++) e=e+al*(a[i]-e); return e; }
+function ewmSeries(a,al){ const o=[a[0]]; for(let i=1;i<a.length;i++) o.push(o[i-1]+al*(a[i]-o[i-1])); return o; }
+function rsiWilder(c,n=14){ if(c.length<n+1) return NaN; const g=[],l=[];
+  for(let i=1;i<c.length;i++){const d=c[i]-c[i-1];g.push(Math.max(d,0));l.push(Math.max(-d,0));}
+  const ag=ewmLast(g,1/n),al=ewmLast(l,1/n); if(al===0) return 100; return 100-100/(1+ag/al); }
+function macdHist(c){ if(c.length<26) return NaN;
+  const ef=ewmSeries(c,2/13),es=ewmSeries(c,2/27),line=ef.map((v,i)=>v-es[i]),sig=ewmSeries(line,2/10);
+  return line[line.length-1]-sig[sig.length-1]; }
+function atrCloseOnly(c,n=14){ if(c.length<2) return NaN; const d=[];
+  for(let i=1;i<c.length;i++) d.push(Math.abs(c[i]-c[i-1])); return ewmLast(d,1/n); }
+function swingLevels(c,lb=60,o=5){ const w=c.slice(-lb),last=c[c.length-1],lows=[],highs=[];
+  for(let i=o;i<w.length-o;i++){const seg=w.slice(i-o,i+o+1);
+    if(w[i]===Math.min(...seg))lows.push(w[i]); if(w[i]===Math.max(...seg))highs.push(w[i]);}
+  const bl=lows.filter(x=>x<last),ab=highs.filter(x=>x>last);
+  return [bl.length?Math.max(...bl):Math.min(...w), ab.length?Math.min(...ab):Math.max(...w)]; }
+
+function analyse(sym,close,volume,live){
+  const price=(live!=null&&!isNaN(live))?live:close[close.length-1];
+  const s50=sma(close,50),s200=sma(close,200),rsi=rsiWilder(close),atr=atrCloseOnly(close);
+  const vAvg=volume.length>=20?volume.slice(-20).reduce((a,b)=>a+b,0)/20:NaN;
+  const vRatio=vAvg?volume[volume.length-1]/vAvg:NaN;
+  const [support,resistance]=swingLevels(close);
+  const hi52=Math.max(...close.slice(-252)),lo52=Math.min(...close.slice(-252));
+  let trend="Sideways";
+  if(!isNaN(s200)){ if(price>s200&&s50>s200)trend="Up"; else if(price<s200&&s50<s200)trend="Down"; }
+  const cands=[support,s50].filter(c=>!isNaN(c)&&c<=price);
+  let buy=cands.length?Math.max(...cands):price; buy=Math.min(buy,price);
+  const nearSup=buy?(price-buy)/price<=0.03:false;
+  const stop=Math.min(buy-1.5*atr,support*0.99),t1=resistance,risk=buy-stop;
+  let t2=buy+2*risk; if(!(price>hi52)) t2=Math.min(t2,hi52);
+  const rr=risk>0?(t1-buy)/risk:NaN;
+  const broke=price<support&&vRatio&&vRatio>1.5;
+  let signal; if(trend==="Down"||broke)signal="AVOID";
+  else if((trend==="Up"||trend==="Sideways")&&rsi>=30&&rsi<=50&&nearSup&&rr>=2)signal="BUY";
+  else signal="WATCH";
+  return {symbol:sym,price,trend,rsi,vRatio,signal,buy:rtick(buy),stop:rtick(stop),
+    t1:rtick(t1),t2:rtick(t2),rr,support:rtick(support),hi52:rtick(hi52),lo52:rtick(lo52)};
+}
+
+// ===========================================================================
+//  Data fetching — through public CORS relays (so a plain web page is allowed
+//  to load PSX data with no server). Tries each relay until one works.
+// ===========================================================================
+const RELAYS = [
+  u => "https://corsproxy.io/?url=" + encodeURIComponent(u),
+  u => "https://api.allorigins.win/raw?url=" + encodeURIComponent(u),
+  u => "https://thingproxy.freeboard.io/fetch/" + u,
+];
+let relayIdx = 0;
+
+async function relayFetch(target){
+  // start from the relay that worked last time, then fall through the rest
+  for(let k=0;k<RELAYS.length;k++){
+    const i=(relayIdx+k)%RELAYS.length;
+    try{
+      const r=await fetch(RELAYS[i](target),{headers:{"Accept":"application/json, text/plain, */*"}});
+      if(!r.ok) throw new Error("HTTP "+r.status);
+      const text=await r.text();
+      relayIdx=i; // remember the winner
+      return text;
+    }catch(e){ /* try next relay */ }
+  }
+  throw new Error("all data relays failed (network or relay down)");
+}
+
+async function fetchEod(sym){
+  const text=await relayFetch(`https://dps.psx.com.pk/timeseries/eod/${sym}`);
+  let js; try{ js=JSON.parse(text); }catch(e){ throw new Error("PSX returned non-JSON (feed may have changed)"); }
+  const rows=js.data||js;
+  if(!rows||!rows.length) throw new Error("no history for "+sym);
+  rows.sort((a,b)=>a[0]-b[0]);
+  const close=[],volume=[]; let last=null;
+  for(const row of rows){ close.push(+row[1]); volume.push(row.length>2&&row[2]!=null?+row[2]:0); last=row[0]; }
+  return {close,volume,asof:new Date(last*1000)};
+}
+
+async function fetchQuote(sym){
+  try{
+    const html=await relayFetch(`https://dps.psx.com.pk/company/${sym}`);
+    let m=html.match(/quote__close[^>]*>\s*Rs\.?\s*([\d,]+\.?\d*)/);
+    if(!m) m=html.match(/Rs\.?\s*([\d,]+\.\d{2})/);
+    return m?+m[1].replace(/,/g,""):null;
+  }catch(e){ return null; }
+}
+
+// ===========================================================================
+//  UI
+// ===========================================================================
+let tickers=JSON.parse(localStorage.getItem("psx_watchlist")||"null")||DEFAULTS.slice();
+let results=[], autoTimer=null;
+const SIG_ORDER={BUY:0,WATCH:1,AVOID:2,ERROR:3};
+const $=id=>document.getElementById(id);
+const pct=(a,b)=>b?((a-b)/b*100).toFixed(1).replace(/^(?!-)/,"+")+"%":"—";
+const saveList=()=>localStorage.setItem("psx_watchlist",JSON.stringify(tickers));
+
+function render(){
+  const box=$("cards");
+  if(!results.length){ box.innerHTML='<div class="empty">No tickers. Add one above.</div>'; return; }
+  const data=results.slice().sort((a,b)=>SIG_ORDER[a.signal]-SIG_ORDER[b.signal]);
+  box.innerHTML=data.map(r=>{
+    if(r.error) return `<div class="card"><div class="top">
+      <span class="sym">${r.symbol}</span>
+      <span><span class="badge ERR">ERROR</span> <span class="rm" data-rm="${r.symbol}">×</span></span></div>
+      <div class="errmsg">${r.error}</div></div>`;
+    const rr=isNaN(r.rr)?"—":r.rr.toFixed(1)+" : 1";
+    return `<div class="card">
+      <div class="top">
+        <span><span class="sym">${r.symbol}</span> <span class="price">Rs ${r.price.toFixed(2)}</span></span>
+        <span><span class="badge ${r.signal}">${r.signal}</span> <span class="rm" data-rm="${r.symbol}">×</span></span>
+      </div>
+      <div class="grid">
+        <div class="cell"><div class="k">Buy level</div><div class="v">${r.buy.toFixed(2)}</div></div>
+        <div class="cell"><div class="k">Stop-loss</div><div class="v neg">${r.stop.toFixed(2)} <small>${pct(r.stop,r.buy)}</small></div></div>
+        <div class="cell"><div class="k">Risk:Reward</div><div class="v">${rr}</div></div>
+        <div class="cell"><div class="k">Target 1</div><div class="v pos">${r.t1.toFixed(2)} <small>${pct(r.t1,r.buy)}</small></div></div>
+        <div class="cell"><div class="k">Target 2</div><div class="v pos">${r.t2.toFixed(2)} <small>${pct(r.t2,r.buy)}</small></div></div>
+        <div class="cell"><div class="k">RSI(14)</div><div class="v">${isNaN(r.rsi)?"—":r.rsi.toFixed(0)}</div></div>
+      </div>
+      <div class="meta"><span>Trend: ${r.trend}</span><span>52w: ${r.lo52.toFixed(2)}–${r.hi52.toFixed(2)}</span></div>
+    </div>`;
+  }).join("");
+  box.querySelectorAll("[data-rm]").forEach(el=>el.onclick=()=>removeTicker(el.dataset.rm));
+}
+
+async function refresh(){
+  $("statusText").textContent="Fetching from PSX…";
+  const live=$("liveChk").checked; results=[];
+  for(const sym of tickers){
+    try{
+      const {close,volume,asof}=await fetchEod(sym);
+      const lp=live?await fetchQuote(sym):null;
+      const a=analyse(sym,close,volume,lp); a.asof=asof; results.push(a);
+    }catch(e){ results.push({symbol:sym,error:e.message,signal:"ERROR"}); }
+    render();
+  }
+  $("statusText").textContent=`Updated ${new Date().toLocaleString()} · ${tickers.length} tickers`;
+  const ds=results.filter(r=>r.asof).map(r=>r.asof);
+  if(ds.length) $("asofText").textContent="Data: "+new Date(Math.max(...ds)).toLocaleDateString();
+}
+
+function addTicker(){ const v=$("addInput").value.trim().toUpperCase();
+  if(v&&!tickers.includes(v)){ tickers.push(v); saveList(); $("addInput").value=""; refresh(); } }
+function removeTicker(s){ tickers=tickers.filter(t=>t!==s); saveList(); refresh(); }
+function setupAuto(){ if(autoTimer){clearInterval(autoTimer);autoTimer=null;}
+  const s=+$("autoSel").value; if(s>0) autoTimer=setInterval(refresh,s*1000); }
+
+$("addBtn").onclick=addTicker;
+$("addInput").addEventListener("keydown",e=>{if(e.key==="Enter")addTicker();});
+$("refreshBtn").onclick=refresh;
+$("autoSel").onchange=setupAuto;
+$("liveChk").onchange=refresh;
+refresh();
+</script>
+</body>
+</html>
