@@ -1,0 +1,36 @@
+{
+ "updated": "2026-11-20T08:07:27+00:00",
+ "count": 6,
+ "items": [
+  {
+   "symbol": "OGDC",
+   "signal": "ERROR",
+   "error": "403 Client Error: Forbidden for url: https://dps.psx.com.pk/timeseries/eod/OGDC"
+  },
+  {
+   "symbol": "HBL",
+   "signal": "ERROR",
+   "error": "403 Client Error: Forbidden for url: https://dps.psx.com.pk/timeseries/eod/HBL"
+  },
+  {
+   "symbol": "LUCK",
+   "signal": "ERROR",
+   "error": "403 Client Error: Forbidden for url: https://dps.psx.com.pk/timeseries/eod/LUCK"
+  },
+  {
+   "symbol": "ENGRO",
+   "signal": "ERROR",
+   "error": "403 Client Error: Forbidden for url: https://dps.psx.com.pk/timeseries/eod/ENGRO"
+  },
+  {
+   "symbol": "PPL",
+   "signal": "ERROR",
+   "error": "403 Client Error: Forbidden for url: https://dps.psx.com.pk/timeseries/eod/PPL"
+  },
+  {
+   "symbol": "MCB",
+   "signal": "ERROR",
+   "error": "403 Client Error: Forbidden for url: https://dps.psx.com.pk/timeseries/eod/MCB"
+  }
+ ]
+}
